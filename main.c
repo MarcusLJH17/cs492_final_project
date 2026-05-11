@@ -22,7 +22,7 @@
 #include "blkdev.h"
 #include "fsx492.h"
 
-#define DEFAULT_IMGNAME "data/test.img"
+#define DEFAULT_IMGNAME "data/test.img
 
 // fsx492 callback bindings
 extern struct fuse_operations fsx492_ops;
