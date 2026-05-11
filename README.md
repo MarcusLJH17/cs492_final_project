@@ -1,9 +1,9 @@
 # FSX492
 
 Group Members
-- member1 (email1)
-- member2 (email2)
-- member3 (email3)
+- Nicholas Fontana (nfontana@stevens.edu)
+- Marcus Hom (mhom1@stevens.edu)
+- Dylan McGrory (dmcgrory@stevens.edu)
 
 Additional features implemented:
 
