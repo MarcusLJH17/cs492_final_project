@@ -44,8 +44,6 @@ static int blkdev_size(struct blkdev * dev)
     struct image * im = dev->private;
     assert(im);
 
-    // TODO:
-
     return im->size;
 }
 
@@ -69,13 +67,28 @@ static int blkdev_read(
     struct image * im = dev->private;
     assert(im);
 
-    // TODO:
+    // BLKDEV_BLKSZ is block size
+    // Self Reference (SR): https://man7.org/linux/man-pages/man2/read.2.html
+    // SR: https://man7.org/linux/man-pages/man2/lseek.2.html
 
     // check if unavailable
+    if (im->fd == -1) { // If file descriptor is -1, file isn't open -> BLKDEV_E_UNAVAIL
+        return BLKDEV_E_UNAVAIL;
+    }
 
     // check block range
+    // If trying to read more blocks than are available to read or trying to read no blocks -> BLKDEV_E_BADADDR
+    if ((start+n-1 >= im->size) || (n == 0)) { 
+        return BLKDEV_E_BADADDR;
+    }
 
-    // read blocks
+    // Before reading, need to repostion the file offset of the file descriptor to the starting block
+    if(lseek(im->fd, start*BLKDEV_BLKSZ, SEEK_SET) != -1) { // Check if lseek was successful; also use SEEK_SET so file offset is set to offset bytes
+        // read blocks
+        if (read(im->fd, buf, n*BLKDEV_BLKSZ) == n*BLKDEV_BLKSZ) { // Check if read returns correct number of bytes read (not -1 due to short read needing to be checked) -> BLKDEV_SUCCESS
+            return BLKDEV_SUCCESS;
+        }
+    }
     
     return BLKDEV_E_FAULT;
 }
@@ -102,13 +115,27 @@ static int blkdev_write(
     struct image * im = dev->private;
     assert(im);
 
-    // TODO:
+    // BLKDEV_BLKSZ is block size
+    // SR: https://man7.org/linux/man-pages/man2/write.2.html
 
     // check if unavailable
+    if (im->fd == -1) { // If file descriptor is -1, file isn't open -> BLKDEV_E_UNAVAIL
+        return BLKDEV_E_UNAVAIL;
+    }
     
-    // check block range
+    // check block range (including superblock check)
+    // If trying to write more blocks than are available to write to, writing to superblock, or writing to no blocks -> BLKDEV_E_BADADDR
+    if ((start+n-1 >= im->size) || (start == 0) || (n == 0)) { 
+        return BLKDEV_E_BADADDR;
+    }
 
-    // write blocks
+    // Before writing, need to repostion the file offset of the file descriptor to the starting block
+    if(lseek(im->fd, start*BLKDEV_BLKSZ, SEEK_SET) != -1) { // Check if lseek was successful; also use SEEK_SET so file offset is set to offset bytes
+        // write blocks
+        if (write(im->fd, buf, n*BLKDEV_BLKSZ) == n*BLKDEV_BLKSZ) { // Check if write returns correct number of bytes written -> BLKDEV_SUCCESS
+            return BLKDEV_SUCCESS;
+        }
+    }
 
     return BLKDEV_E_FAULT;
 }
@@ -131,9 +158,13 @@ static int blkdev_flush(struct blkdev * dev, uint32_t start, uint32_t n)
     struct image * im = dev->private;
     assert(im);
 
-    // TODO:
+    // (does nothing because no internal buffers)
+    // So just check if file is unavailable?
+    if (im->fd == -1) { // If file descriptor is -1, file isn't open -> BLKDEV_E_UNAVAIL
+        return BLKDEV_E_UNAVAIL;
+    }
 
-    return BLKDEV_E_FAULT;
+    return BLKDEV_SUCCESS;
 }
 
 
@@ -157,12 +188,25 @@ static void blkdev_close(struct blkdev * dev)
     struct image * im = dev->private;
     assert(im);
 
-    // TODO:
+    // SR: https://man7.org/linux/man-pages/man2/close.2.html
+    // SR: https://pubs.opengroup.org/onlinepubs/009604499/functions/free.html
 
-    // close image file
+    // check if file open
+    if (im->fd != -1) { // If file descriptor is not -1, file is open
+        // close image file
+        if (close(im->fd) != -1) { // Close the image file
+            im->fd = -1; // Set fd to -1 if close() ran successfully
+        }
+    }
 
-    // free allocated memory
+    // free allocated memory (make sure to do im->path before im for obvious reasons)
+    free(im->path);
+    im->path = NULL;
 
+    free(im);
+
+    // Since private holds the pointer to im, NULL it INSTEAD of im
+    dev->private = NULL;
 }
 
 /**
