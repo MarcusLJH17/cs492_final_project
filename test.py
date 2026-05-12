@@ -99,19 +99,19 @@ def test_subdirectory(mountpoint):
     # 1.) Create subdirectory and check it exists
     print(f"[test] make subdirectory {mountpoint}")
     dir_name = "sub_dir"
-    sub_path = os.path.join(mountpoint, dir_name) # Get subdirectory path
-    os.mkdir(sub_path) # Make the new directory
-    assert os.path.exists(sub_path), f"subdirectory creation failed: {sub_path} does not exist" # Check if it exists, if not print error
+    base_path = os.path.join(mountpoint, dir_name) # Get subdirectory path
+    os.mkdir(base_path) # Make the new directory
+    assert os.path.exists(base_path), f"subdirectory creation failed: {base_path} does not exist" # Check if it exists, if not print error
 
     # 2.) Create file in the subdirectory and ensure file exists + Write to file and read it to ensure what was written is there
     ex_sentence = "The quick brown fox jumped over the lazy dog" # Used when writing to text files
-    print(f"[test] add and write to files in subdir {sub_path}")
+    print(f"[test] add and write to files in subdir {base_path}")
     for i in range(3):
-        new_file_path = os.path.join(sub_path, f"test_file{i+1}.txt") # Path of new file
+        new_file_path = os.path.join(base_path, f"test_file{i+1}.txt") # Path of new file
         with open(new_file_path, "w") as file: # Open file in write mode
             file.write(ex_sentence[(i*9):((i+1)*9)]) # Write some part of the example sentence to the new
 
-        assert os.path.exists(new_file_path), f"file creation failed: {new_file_path} does new exist" # Check if new file was successfully made
+        assert os.path.exists(new_file_path), f"file creation failed: {new_file_path} does not exist" # Check if new file was successfully made
 
         with open(new_file_path, "r") as file: # Open file in read mode
             data = file.read() # Read the data from the file
@@ -119,67 +119,150 @@ def test_subdirectory(mountpoint):
         assert data == ex_sentence[(i*9):((i+1)*9)], f"unexpected file content of file at {new_file_path}" # Ensure file data is what it should be
 
     # 3.) Remove the files and ensure they do NOT exist
-    print(f"[test] remove files in subdir {sub_path}")
-    for file in os.listdir(sub_path): # Loop through all files in subdirectory
-        full_file_path = os.path.join(sub_path, file) # Gets the file's full path by joining with subdirectory path
+    print(f"[test] remove files in subdir {base_path}")
+    for file in os.listdir(base_path): # Loop through all files in subdirectory
+        full_file_path = os.path.join(base_path, file) # Gets the file's full path by joining with subdirectory path
 
         # Since we're specifically removing files, we should ignore any other directories (not that it matters)
         if os.path.isfile(full_file_path): # Checks that the path is that of a file
             os.remove(full_file_path) # Removes file
     
-    assert not (True in [os.path.is_file(file) for file in os.listdir(sub_path)]), f"file removal failed" # Check if any file still exists in the subdirectory
+    assert not (True in [os.path.is_file(file) for file in os.listdir(base_path)]), f"file removal failed" # Check if any file still exists in the subdirectory
 
     # 4.) Remove the subdirectory and ensure it does NOT exist
-    print(f"[test] remove subdirectory {sub_path}")
-    os.rmdir(sub_path) # Remove the subdirectory
-    assert not os.path.exists(sub_path), f"subdirectory removal failed: {sub_path} still exists" # Check if subdirectory still exists
+    print(f"[test] remove subdirectory {base_path}")
+    os.rmdir(base_path) # Remove the subdirectory
+    assert not os.path.exists(base_path), f"subdirectory removal failed: {base_path} still exists" # Check if subdirectory still exists
 
     print("[test] passed subdirectory")
 
 def test_block_directories(mountpoint):
     # FSX492_DIRENTRIES_PER_BLK = FSX492_BLKSZ (1024) / sizeof(struct fsx492_dirent) (32) = 32 directory entries
+    print(f"[test] create directory {mountpoint}")
     dir_name = "block_dir"
-    block_path = os.path.join(mountpoint, dir_name) # Get path for subdirectory used in testing
+    base_path = os.path.join(mountpoint, dir_name) # Get path for subdirectory used in testing
+    os.mkdir(base_path) # Make the new directory
+    assert os.path.exists(base_path), f"directory creation failed: {base_path} does not exist" # Check if it exists, if not print error
 
     # 1.) Make the new directories
-    print(f"[test] create directories {block_path}")
+    print(f"[test] create directories {base_path}")
     for i in range(40): # Could do 33 for testing, but 40 is a nice round number
-        new_dir_path = os.path.join(block_path, f"dir_{i}") # Get path of new directory
+        new_dir_path = os.path.join(base_path, f"dir_{i}") # Get path of new directory
         os.mkdir(new_dir_path) # Make the new directory
     
-    dir_list = os.listdir(block_path) # Get all contents of block subdirectory
+    dir_list = os.listdir(base_path) # Get all contents of block subdirectory
     for i in range(40):
         assert f"dir_{i}" in dir_list, f"adding directory failed: dir_{i} not found" # Check if all directories made are present
     
     # 2.) Remove the new directories
-    print(f"[test] remove directories {block_path}")
+    print(f"[test] remove directories {base_path}")
     for i in range(40):
-        new_dir_path = os.path.join(block_path, f"dir_{i}") # Get path of directory to delete
+        new_dir_path = os.path.join(base_path, f"dir_{i}") # Get path of directory to delete
         os.rmdir(new_dir_path) # Remove the directory
     
-    dir_list = os.listdir(block_path) # Get all contents of block subdirectory
+    dir_list = os.listdir(base_path) # Get all contents of block subdirectory
     for i in range(40):
         assert not (f"dir_{i}" in dir_list), f"removing directory failed: dir_{i} still exists" # Check if all directories made are now removed
 
-    os.rmdir(block_path) # Remove the directory created for testing
+    print(f"[test] remove directory {mountpoint}")
+    os.rmdir(base_path) # Remove the directory created for testing
+    assert not os.path.exists(base_path), f"directory removal failed: {base_path} still exists" # Check if it exists, if not print error
 
     print("[test] passed block directories")
 
 def test_overwrite(mountpoint):
-    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
-    # Whatever operations here
-    CONDITION = True # Remove this later
-    assert CONDITION, "FAILURE MESSAGE"
+    # 1.) Make new directory
+    print(f"[test] create directory {mountpoint}")
+    dir_name = "overwrite_dir"
+    base_path = os.path.join(mountpoint, dir_name) # Get path for subdirectory used in testing
+    os.mkdir(base_path) # Make the new directory
+    assert os.path.exists(base_path), f"directory creation failed: {base_path} does not exist" # Check if it exists, if not print error
 
-    print("[test] passed OUTLINE") # Always end function with this
+    # 2.) Make new file and write to it, make sure file exists
+    print(f"[test] create file {base_path}")
+    file_path = os.path.join(base_path, "new_file.txt")
+    with open(file_path, "w") as file: # Open file in write mode
+        file.write("Hello World!") # Write to file
+
+    assert os.path.exists(file_path), f"file creation failed: {file_path} does not exist" # Check if new file was successfully made
+
+    # 3.) Check file content
+    print(f"[test] file initial write {file_path}")
+    with open(file_path, "r") as file: # Open file in read mode
+        data = file.read()
+    
+    assert data == "Hello World!", f"unexpected file content of file at {file_path}" # Ensure file data is what it should be
+
+    # 4.) Overwrite file, check content
+    print(f"[test] file overwrite {file_path}")
+    with open(file_path, "w") as file: # Open file in write mode
+        file.write("Goodbye World!") # Overwrite file
+    
+    with open(file_path, "r") as file: # Open file in read mode
+        data = file.read()
+    
+    assert data == "Goodbye World!", f"unexpected file content of file at {file_path}" # Ensure file data is what it should be
+
+    # 5.) Remove file, make sure it doesn't exist
+    print(f"[test] remove file {base_path}")
+    os.remove(file_path) # Remove the file
+
+    assert not os.path.exists(file_path), f"file removal failed: {file_path} still exists" # Check if file was removed
+
+    # 6.) Remove initial directory, make sure it doesn't exist
+    print(f"[test] remove directory {mountpoint}")
+    os.rmdir(base_path) # Remove the directory created for testing
+
+    assert not os.path.exists(base_path), f"directory removal failed: {base_path} still exists" # Check if it was removed, if not print error
+
+    print("[test] passed overwrite") # Always end function with this
 
 def test_append(mountpoint):
-    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
-    # Whatever operations here
-    CONDITION = True # Remove this later
-    assert CONDITION, "FAILURE MESSAGE"
+    # 1.) Make new directory
+    print(f"[test] create directory {mountpoint}")
+    dir_name = "append_dir"
+    base_path = os.path.join(mountpoint, dir_name) # Get path for subdirectory used in testing
+    os.mkdir(base_path) # Make the new directory
+    assert os.path.exists(base_path), f"directory creation failed: {base_path} does not exist" # Check if it exists, if not print error
 
-    print("[test] passed OUTLINE") # Always end function with this
+    # 2.) Make new file and write to it, make sure file exists
+    print(f"[test] create file {base_path}")
+    file_path = os.path.join(base_path, "new_file.txt")
+    with open(file_path, "w") as file: # Open file in write mode
+        file.write("Hello") # Write to file
+
+    assert os.path.exists(file_path), f"file creation failed: {file_path} does not exist" # Check if new file was successfully made
+
+    # 3.) Check file content
+    print(f"[test] file initial write {file_path}")
+    with open(file_path, "r") as file: # Open file in read mode
+        data = file.read()
+    
+    assert data == "Hello", f"unexpected file content of file at {file_path}" # Ensure file data is what it should be
+
+    # 4.) Append to file, check content
+    print(f"[test] file append {file_path}")
+    with open(file_path, "a") as file: # Open file in append mode
+        file.write(" World!") # Append to file
+    
+    with open(file_path, "r") as file: # Open file in read mode
+        data = file.read()
+    
+    assert data == "Hello World!", f"unexpected file content of file at {file_path}" # Ensure file data is what it should be
+
+    # 5.) Remove file, make sure it doesn't exist
+    print(f"[test] remove file {base_path}")
+    os.remove(file_path) # Remove the file
+
+    assert not os.path.exists(file_path), f"file removal failed: {file_path} still exists" # Check if file was removed
+
+    # 6.) Remove initial directory, make sure it doesn't exist
+    print(f"[test] remove directory {mountpoint}")
+    os.rmdir(base_path) # Remove the directory created for testing
+    
+    assert not os.path.exists(base_path), f"directory removal failed: {base_path} still exists" # Check if it was removed, if not print error
+
+    print("[test] passed append") # Always end function with this
 
 def test_hard_links(mountpoint):
     print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
