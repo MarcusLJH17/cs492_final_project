@@ -96,11 +96,6 @@ def test_large_file(mountpoint):
     print("[test] passed large file")
 
 def test_subdirectory(mountpoint):
-    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
-    # Whatever operations here
-    CONDITION = True # Remove this later
-    assert CONDITION, "FAILURE MESSAGE"
-
     # 1.) Create subdirectory and check it exists
     print(f"[test] make subdirectory {mountpoint}")
     dir_name = "sub_dir"
@@ -141,13 +136,34 @@ def test_subdirectory(mountpoint):
 
     print("[test] passed subdirectory")
 
-def test_ar_directories(mountpoint):
-    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
-    # Whatever operations here
-    CONDITION = True # Remove this later
-    assert CONDITION, "FAILURE MESSAGE"
+def test_block_directories(mountpoint):
+    # FSX492_DIRENTRIES_PER_BLK = FSX492_BLKSZ (1024) / sizeof(struct fsx492_dirent) (32) = 32 directory entries
+    dir_name = "block_dir"
+    block_path = os.path.join(mountpoint, dir_name) # Get path for subdirectory used in testing
 
-    print("[test] passed OUTLINE") # Always end function with this
+    # 1.) Make the new directories
+    print(f"[test] create directories {block_path}")
+    for i in range(40): # Could do 33 for testing, but 40 is a nice round number
+        new_dir_path = os.path.join(block_path, f"dir_{i}") # Get path of new directory
+        os.mkdir(new_dir_path) # Make the new directory
+    
+    dir_list = os.listdir(block_path) # Get all contents of block subdirectory
+    for i in range(40):
+        assert f"dir_{i}" in dir_list, f"adding directory failed: dir_{i} not found" # Check if all directories made are present
+    
+    # 2.) Remove the new directories
+    print(f"[test] remove directories {block_path}")
+    for i in range(40):
+        new_dir_path = os.path.join(block_path, f"dir_{i}") # Get path of directory to delete
+        os.rmdir(new_dir_path) # Remove the directory
+    
+    dir_list = os.listdir(block_path) # Get all contents of block subdirectory
+    for i in range(40):
+        assert not (f"dir_{i}" in dir_list), f"removing directory failed: dir_{i} still exists" # Check if all directories made are now removed
+
+    os.rmdir(block_path) # Remove the directory created for testing
+
+    print("[test] passed block directories")
 
 def test_overwrite(mountpoint):
     print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
