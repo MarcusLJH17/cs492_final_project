@@ -101,16 +101,45 @@ def test_subdirectory(mountpoint):
     CONDITION = True # Remove this later
     assert CONDITION, "FAILURE MESSAGE"
 
-    # 1.) Create subdirectory and check it exists 
-    # 2.) Create file in the subdirectory and ensure file exists
-    # 2.5) POSSIBLY add multiple files in step above due to it saying fileS in the requirements
-    # 3.) Write to file and read it to ensure what was written is there
-    # 4.) Remove the file and ensure it does NOT exist
-    # 5.) Remove the subdirectory and ensure it does NOT exist 
+    # 1.) Create subdirectory and check it exists
+    print(f"[test] make subdirectory {mountpoint}")
+    dir_name = "sub_dir"
+    sub_path = os.path.join(mountpoint, dir_name) # Get subdirectory path
+    os.mkdir(sub_path) # Make the new directory
+    assert os.path.exists(sub_path), f"subdirectory creation failed: {sub_path} does not exist" # Check if it exists, if not print error
 
+    # 2.) Create file in the subdirectory and ensure file exists + Write to file and read it to ensure what was written is there
+    ex_sentence = "The quick brown fox jumped over the lazy dog" # Used when writing to text files
+    print(f"[test] add and write to files in subdir {sub_path}")
+    for i in range(3):
+        new_file_path = os.path.join(sub_path, f"test_file{i+1}.txt") # Path of new file
+        with open(new_file_path, "w") as file: # Open file in write mode
+            file.write(ex_sentence[(i*9):((i+1)*9)]) # Write some part of the example sentence to the new
 
-    print("[test] passed OUTLINE") # Always end function with this
+        assert os.path.exists(new_file_path), f"file creation failed: {new_file_path} does new exist" # Check if new file was successfully made
 
+        with open(new_file_path, "r") as file: # Open file in read mode
+            data = file.read() # Read the data from the file
+
+        assert data == ex_sentence[(i*9):((i+1)*9)], f"unexpected file content of file at {new_file_path}" # Ensure file data is what it should be
+
+    # 3.) Remove the files and ensure they do NOT exist
+    print(f"[test] remove files in subdir {sub_path}")
+    for file in os.listdir(sub_path): # Loop through all files in subdirectory
+        full_file_path = os.path.join(sub_path, file) # Gets the file's full path by joining with subdirectory path
+
+        # Since we're specifically removing files, we should ignore any other directories (not that it matters)
+        if os.path.isfile(full_file_path): # Checks that the path is that of a file
+            os.remove(full_file_path) # Removes file
+    
+    assert not (True in [os.path.is_file(file) for file in os.listdir(sub_path)]), f"file removal failed" # Check if any file still exists in the subdirectory
+
+    # 4.) Remove the subdirectory and ensure it does NOT exist
+    print(f"[test] remove subdirectory {sub_path}")
+    os.rmdir(sub_path) # Remove the subdirectory
+    assert not os.path.exists(sub_path), f"subdirectory removal failed: {sub_path} still exists" # Check if subdirectory still exists
+
+    print("[test] passed subdirectory")
 
 def test_ar_directories(mountpoint):
     print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
