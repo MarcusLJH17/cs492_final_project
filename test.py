@@ -29,37 +29,37 @@ def test_basic(mountpoint):
     print(f"[test] list {mountpoint}")
     entries = os.listdir(mountpoint)
     print(entries)
-    assert "hello.txt" in entries, "readdir missing file"
+    assert "hello.txt" in entries, "readdir missing file" # Checks if hello.txt is >listed< in the directory
 
     # TEST: file existence
     path = os.path.join(mountpoint, "hello.txt")
     print(f"[test] file existence: {path}")
-    assert os.path.exists(path), "file missing"
+    assert os.path.exists(path), "file missing" # Checks if hello.txt actually exists
 
     # TEST: read
     print(f"[test] read {path}")
     with open(path, "r") as f:
         data = f.read()
-    assert "hello" in data, "unexpected file content"
+    assert "hello" in data, "unexpected file content" # Checks if "hello" is in hello.txt
 
     # TEST: partial read
     print(f"[test] partial read {path}")
     with open(path, "r") as f:
         f.seek(6)
         data = f.read()
-    assert "world" in data, "partial read failed"
+    assert "world" in data, "partial read failed" # Seeks to the 6th byte, then checks if "world" is in hello.txt
 
     # TEST: out of bounds read
     print(f"[test] out of bounds read {path}")
     with open(path, "r") as f:
         f.seek(30)
         data = f.read()
-    assert len(data) == 0, "out of bounds read should return nothing"
+    assert len(data) == 0, "out of bounds read should return nothing" # Seeks out of bounds and checks if there is no data
 
     # TEST: stat
     print(f"[test] stat {path}")
     st = os.stat(path)
-    assert st.st_size == len("hello world!\n"), "invalid file size"
+    assert st.st_size == len("hello world!\n"), "invalid file size" # Checks to make sure the file contents of hello.txt match the length of "hello world!\n"
 
     print("[test] passed basic")
 
@@ -95,7 +95,70 @@ def test_large_file(mountpoint):
 
     print("[test] passed large file")
 
+def test_subdirectory(mountpoint):
+    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
+    # Whatever operations here
+    CONDITION = True # Remove this later
+    assert CONDITION, "FAILURE MESSAGE"
 
+    # 1.) Create subdirectory and check it exists 
+    # 2.) Create file in the subdirectory and ensure file exists
+    # 2.5) POSSIBLY add multiple files in step above due to it saying fileS in the requirements
+    # 3.) Write to file and read it to ensure what was written is there
+    # 4.) Remove the file and ensure it does NOT exist
+    # 5.) Remove the subdirectory and ensure it does NOT exist 
+
+
+    print("[test] passed OUTLINE") # Always end function with this
+
+
+def test_ar_directories(mountpoint):
+    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
+    # Whatever operations here
+    CONDITION = True # Remove this later
+    assert CONDITION, "FAILURE MESSAGE"
+
+    print("[test] passed OUTLINE") # Always end function with this
+
+def test_overwrite(mountpoint):
+    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
+    # Whatever operations here
+    CONDITION = True # Remove this later
+    assert CONDITION, "FAILURE MESSAGE"
+
+    print("[test] passed OUTLINE") # Always end function with this
+
+def test_append(mountpoint):
+    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
+    # Whatever operations here
+    CONDITION = True # Remove this later
+    assert CONDITION, "FAILURE MESSAGE"
+
+    print("[test] passed OUTLINE") # Always end function with this
+
+def test_hard_links(mountpoint):
+    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
+    # Whatever operations here
+    CONDITION = True # Remove this later
+    assert CONDITION, "FAILURE MESSAGE"
+
+    print("[test] passed OUTLINE") # Always end function with this
+
+def test_access_mod(mountpoint):
+    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
+    # Whatever operations here
+    CONDITION = True # Remove this later
+    assert CONDITION, "FAILURE MESSAGE"
+
+    print("[test] passed OUTLINE") # Always end function with this
+
+def test_permissions(mountpoint):
+    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
+    # Whatever operations here
+    CONDITION = True # Remove this later
+    assert CONDITION, "FAILURE MESSAGE"
+
+    print("[test] passed OUTLINE") # Always end function with this
 
 ##############################################################################
 # END TEST DEFINITIONS
