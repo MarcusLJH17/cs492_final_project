@@ -1162,6 +1162,16 @@ int fsx492_getattr(
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
 
     // TODO:
+    uint32_t target_ino = 0, parent_ino = 0;
+
+    int searchNode = lookup_path(path, &target_ino, &parent_ino);
+
+    if(searchNode < 0){
+        return searchNode;
+    }else{
+        copy_stat(&ctx->inodes[target_ino], statbuf);
+        return 0;
+    }
 
     // lookup inode (or skip lookup if handle already open in fi)
 
@@ -1572,13 +1582,19 @@ int fsx492_release(const char * path, struct fuse_file_info * fi)
     fprintf(stdout, "fsx492_release: %s\n", path);
     assert(path);
 
-    // TODO:
 
     // release resources from opened file (e.g. file handle)
+    struct fh * fHandle = (struct fh *)fi->fh;
+    free(fHandle);
+    fi->fh = NULL;
 
     // write back metadata
+    struct context * ctx = (struct context *)fuse_get_context()->private_data;
+    if (writeback_metadata(ctx) < 0) {
+        return -EIO;
+    }
 
-    return -ENOSYS;
+    return 0;
 }
 
 
@@ -1649,17 +1665,34 @@ int fsx492_opendir(const char * path, struct fuse_file_info * fi)
     assert(fi);
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
     
-    // TODO:
-
     // look up the directory inode
 
-    // create a new file handle
+    uint32_t target_ino = 0, parent_ino = 0;
 
-    // (optional) perform permissions checking
+    int searchNode = lookup_path(path, &target_ino, &parent_ino);
+
+    if(searchNode < 0){
+        return searchNode;
+    }
+
+    struct fsx492_inode * dir = &ctx->inodes[target_ino];
+    if (!S_ISDIR(dir->mode)){
+        return -ENOTDIR;
+    }
+
+    // create a new file handle
+    struct fh * fHandle = malloc(sizeof(struct fh));
+    if (!fHandle) {
+        return -ENOSPC;
+    }
+
+    fHandle->ino = target_ino;
+    fHandle->flags = fi->flags;
 
     // update fi with file handle
+    fi->fh = (uint64_t)fHandle;
 
-    return -ENOSYS;
+    return 0;
 }
 
 
@@ -1773,13 +1806,19 @@ int fsx492_releasedir(const char * path, struct fuse_file_info * fi)
     fprintf(stdout, "fsx492_releasedir: %s\n", path);
     assert(fi);
     
-    // TODO:
 
     // free allocated resources (file handle)
+    struct fh * fHandle = (struct fh *)fi->fh;
+    free(fHandle);
+    fi->fh = NULL;
 
     // write back dirty metadata
+    struct context * ctx = (struct context *)fuse_get_context()->private_data;
+    if (writeback_metadata(ctx) < 0) {
+        return -EIO;
+    }
 
-    return -ENOSYS;
+    return 0;
 }
 
 
