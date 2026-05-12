@@ -215,7 +215,7 @@ def test_overwrite(mountpoint):
 
     assert not os.path.exists(base_path), f"directory removal failed: {base_path} still exists" # Check if it was removed, if not print error
 
-    print("[test] passed overwrite") # Always end function with this
+    print("[test] passed overwrite")
 
 def test_append(mountpoint):
     # 1.) Make new directory
@@ -262,15 +262,76 @@ def test_append(mountpoint):
     
     assert not os.path.exists(base_path), f"directory removal failed: {base_path} still exists" # Check if it was removed, if not print error
 
-    print("[test] passed append") # Always end function with this
+    print("[test] passed append") 
 
 def test_hard_links(mountpoint):
-    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
-    # Whatever operations here
-    CONDITION = True # Remove this later
-    assert CONDITION, "FAILURE MESSAGE"
+    # 1.) Create new file1 and write to it, check it exists
+    print(f"[test] create file {mountpoint}")
+    file_path1 = os.path.join(mountpoint, "link_file1.txt")
+    with open(file_path1, "w") as file: # Open file in write mode
+        file.write("Linking is pretty cool") # Write to file
 
-    print("[test] passed OUTLINE") # Always end function with this
+    assert os.path.exists(file_path1), f"file creation failed: {file_path1} does not exist" # Check if new file1 was successfully made
+
+    # 2.) Check file1's content is correct
+    print(f"[test] create file {mountpoint}")
+    with open(file_path1, "r") as file: # Open file1 in read mode
+        data = file.read()
+    
+    assert data == "Linking is pretty cool", f"unexpected file content of file at {file_path1}" # Ensure file data is what it should be
+
+    # 3.) Create hard link and ensure new file2 exists
+    print(f"[test] create link {mountpoint}")
+    file_path2 = os.path.join(mountpoint, "link_file2.txt")
+    os.link(file_path1, file_path2) # Do the link
+    
+    assert os.path.exists(file_path2), f"linking failed: {file_path2} does not exist" # Check if new file2 exists
+    
+    # 4.) Ensure the link count from both are the same (2)
+    print(f"[test] link count {mountpoint}")
+
+    assert os.stat(file_path1).st_nlink == 2 and os.stat(file_path2).st_nlink == 2, f"file link count not accurate: count not 2 for both {file_path1} and {file_path2}" 
+
+    # 5.) Read from the new file2 and ensure it has the same content as file1
+    print(f"[test] link content {mountpoint}")
+    with open(file_path1, "r") as file: # Open file1 in read mode
+        data1 = file.read()
+    
+    with open(file_path2, "r") as file: # Open file2 in read mode
+        data2 = file.read()
+
+    assert data1 == data2 and data2 == "Linking is pretty cool", f"unexpected linked file content for {file_path2}"
+
+    # 6.) Remove file1, check it was removed
+    print(f"[test] remove file {mountpoint}")
+    os.remove(file_path1) # Remove the file1
+
+    assert not os.path.exists(file_path1), f"file removal failed: {file_path1} still exists" # Check if file was removed
+
+    # 7.) Ensure file2 still exists
+    print(f"[test] file exists {mountpoint}")
+
+    assert os.path.exists(file_path2), f"link doesn't exist: {file_path2} does not exist" # Check if new file2 exists
+
+    # 8.) Check the link count for file2 (1)
+    print(f"[test] updated link count {mountpoint}")
+
+    assert os.stat(file_path2).st_nlink == 1, f"file link count not accurate for {file_path2}" 
+
+    # 9.) Check content of file2 once more
+    print(f"[test] link content post-removal {mountpoint}")
+    with open(file_path2, "r") as file: # Open file2 in read mode
+        data = file.read()
+
+    assert data == "Linking is pretty cool", f"unexpected file content for {file_path2}"
+
+    # 10.) Remove file2, check it was removed
+    print(f"[test] remove file {mountpoint}")
+    os.remove(file_path2) # Remove the file1
+
+    assert not os.path.exists(file_path2), f"file removal failed: {file_path2} still exists" # Check if file was removed
+
+    print("[test] passed hard links")
 
 def test_access_mod(mountpoint):
     print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
