@@ -1553,17 +1553,78 @@ int fsx492_write(const char * path, const char * buf, size_t size,
     // TODO:
 
     // validate file handle
-
+    if(!fi || !fi->fh) {
+        return -EBADF;
+    }
+    uint32_t ino = ((struct fh *)fi->fh)->ino;
+    if(validate_inode(ino,ctx) < 0){
+        return -EBADF;
+    }
+    struct fsx492_inode * inode = &ctx->inodes[ino];
+    if (S_ISDIR(inode->mode)) {
+        return -EISDIR;
+    }
     // write to direct blocks if needed (allocate space as needed)
-
+    size_t to_write = size;
+    const size_t direct_sz = FSX492_N_DIRECT * FSX492_BLKSZ;
+    if(to_write > 0 && offset <direct_sz) {
+        size_t start_blk = offset / FSX492_BLKSZ;
+        for (size_t i = start_blk; to_write > 0 && i < FSX492_N_DIRECT; i++) {
+            if (validate_block(inode->direct_blks[i], ctx) < 0) {
+                if (alloc_blk(&inode->direct_blks[i], ctx) < 0) return -ENOSPC;
+                inode->blocks++;
+            }
+            char tmp[FSX492_BLKSZ];
+            if (read_blks(inode->direct_blks[i], 1, tmp) < 0) return -EIO;
+            
+            size_t blk_off = offset % FSX492_BLKSZ;
+            size_t blk_wlen = (to_write > (FSX492_BLKSZ - blk_off)) ? (FSX492_BLKSZ - blk_off) : to_write;
+            
+            memcpy(tmp + blk_off, buf, blk_wlen);
+            if (write_blks(inode->direct_blks[i], 1, tmp) < 0) return -EIO;
+            
+            to_write -= blk_wlen;
+            offset += blk_wlen;
+            buf += blk_wlen;
+    }
     // write to indir1 blocks if needed (allocate space as needed)
+    const size_t indir1_sz = (FSX492_N_DIRECT + FSX492_PTRS_PER_BLK) * FSX492_BLKSZ;
+    if (to_write > 0 && offset < indir1_sz) {
+        if (validate_block(inode->indir1_blks, ctx) < 0) {
+            if (alloc_blk(&inode->indir1_blks, ctx) < 0) return -ENOSPC;
+        }
+        uint32_t blks[FSX492_PTRS_PER_BLK];
+        if (read_blks(inode->indir1_blks, 1, blks) < 0) return -EIO;
 
+        size_t start_blk = (offset / FSX492_BLKSZ) - FSX492_N_DIRECT;
+        for (size_t i = start_blk; to_write > 0 && i < FSX492_PTRS_PER_BLK; i++) {
+            if (validate_block(blks[i], ctx) < 0) {
+                if (alloc_blk(&blks[i], ctx) < 0) return -ENOSPC;
+                inode->blocks++;
+                if (write_blks(inode->indir1_blks, 1, blks) < 0) return -EIO;
+            }
+            char tmp[FSX492_BLKSZ];
+            read_blks(blks[i], 1, tmp);
+            size_t blk_off = offset % FSX492_BLKSZ;
+            size_t blk_wlen = (to_write > (FSX492_BLKSZ - blk_off)) ? (FSX492_BLKSZ - blk_off) : to_write;
+            memcpy(tmp + blk_off, buf, blk_wlen);
+            write_blks(blks[i], 1, tmp);
+            
+            to_write -= blk_wlen;
+            offset += blk_wlen;
+            buf += blk_wlen;
+        }
+    }
     // write to indir2 blocks if needed (allocate space as needed)
 
     // update inode and mark dirty
+    if (offset > inode->size) {
+        inode->size = offset; [cite: 200]
+    }
+    inode->mtime = inode->atime = time(NULL); [cite: 200]
+    dirty_inode(ino, ctx);
 
-
-    return -ENOSYS;
+    return (int)(size - to_write);
 }
 
 
