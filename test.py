@@ -265,6 +265,8 @@ def test_append(mountpoint):
     print("[test] passed append") 
 
 def test_hard_links(mountpoint):
+    # Self Reference: https://docs.python.org/3/library/os.html#os.stat
+
     # 1.) Create new file1 and write to it, check it exists
     print(f"[test] create file {mountpoint}")
     file_path1 = os.path.join(mountpoint, "link_file1.txt")
@@ -327,27 +329,86 @@ def test_hard_links(mountpoint):
 
     # 10.) Remove file2, check it was removed
     print(f"[test] remove file {mountpoint}")
-    os.remove(file_path2) # Remove the file1
+    os.remove(file_path2) # Remove the file2
 
     assert not os.path.exists(file_path2), f"file removal failed: {file_path2} still exists" # Check if file was removed
 
     print("[test] passed hard links")
 
 def test_access_mod(mountpoint):
-    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
-    # Whatever operations here
-    CONDITION = True # Remove this later
-    assert CONDITION, "FAILURE MESSAGE"
+    # Self Reference: https://www.geeksforgeeks.org/python/python-os-utime-method/
 
-    print("[test] passed OUTLINE") # Always end function with this
+    # 1.) Create a file, check if file exists
+    print(f"[test] create file {mountpoint}")
+    file_path = os.path.join(mountpoint, "am_file.txt")
+    with open(file_path, "w") as file: # Open file in write mode
+        file.write("Access and modification change") # Write to file
+
+    assert os.path.exists(file_path), f"file creation failed: {file_path} does not exist" # Check if new file was successfully made
+
+    # 2.) Get current access and modification time, update access and modification time, 
+    # and check if current file access and modification times match what was updated
+    print(f"[test] update access and modification times {file_path}")
+    old_access_time = os.stat(file_path).st_atime # Get current access time
+    old_mod_time = os.stat(file_path).st_mtime # Get current modification time
+
+    new_access_time = 123454321
+    new_mod_time = 123456789
+    os.utime(file_path, (new_access_time, new_mod_time)) # Update access and modification times
+
+    assert os.stat(file_path).st_atime == 123454321, f"access time not matching updated value for {file_path}"
+    assert os.stat(file_path).st_mtime == 123456789, f"modification time not matching updated value for {file_path}"
+
+    # 3.) Ensure new values are different from old values (not sure if necessary but doesn't hurt)
+    print(f"[test] different access and modification times from old {file_path}")
+    assert os.stat(file_path).st_atime != old_access_time, f"updated access time same as original time for {file_path}"
+    assert os.stat(file_path).st_mtime != old_mod_time, f"updated modification time same as original time for {file_path}"
+
+    # 4.) Remove file, check if it was removed
+    print(f"[test] remove file {mountpoint}")
+    os.remove(file_path) # Remove the file
+
+    assert not os.path.exists(file_path), f"file removal failed: {file_path} still exists" # Check if file was removed
+
+    print("[test] passed access mod")
 
 def test_permissions(mountpoint):
-    print(f"[test] TEST_NAME TEST_PATH") # Do this for each test in this function
-    # Whatever operations here
-    CONDITION = True # Remove this later
-    assert CONDITION, "FAILURE MESSAGE"
+    '''
+    Self notes:
+    os.stat(path).st_mode -> 0oxxxppp where ppp is the permissions for owner, group, and others
+    Remember, read = 4, write = 2, execute = 1
+    To change permissions we can use os.chmod(path, perm)
+    perm can equal 0oXXX where each X is a number
+    '''
 
-    print("[test] passed OUTLINE") # Always end function with this
+    # 1.) Create a file, make sure it exists
+    print(f"[test] create file {mountpoint}")
+    file_path = os.path.join(mountpoint, "perm_file.txt")
+    with open(file_path, "w") as file: # Open file in write mode
+        file.write("Permission changing is fun") # Write to file
+
+    assert os.path.exists(file_path), f"file creation failed: {file_path} does not exist" # Check if new file was successfully made
+    
+    # 2.) Save what the current permissions are (preferably in octal), change them, and check to ensure they were changed
+    old_perm = (os.stat(file_path).st_mode) & 0o777 # Gets current permission bits by using a mask
+    print(f"[test] update file permissions {file_path}")
+    updated_perm = 0o400
+    os.chmod(file_path, updated_perm) # I only want the owner to be able to read the file
+    
+    assert oct((os.stat(file_path).st_mode) & 0o777) == updated_perm, f"permissions were not updated for {file_path}"    
+
+    # 3.) Check that the new permissions are different from the original saved ones
+    print(f"[test] file permissions changed {file_path}")
+
+    assert old_perm != (os.stat(file_path).st_mode & 0o777), f"new permissions same as old for {file_path}"
+
+    # 4.) Remove the file and check that it was removed 
+    print(f"[test] remove file {mountpoint}")
+    os.remove(file_path) # Remove the file
+
+    assert not os.path.exists(file_path), f"file removal failed: {file_path} still exists" # Check if file was removed
+
+    print("[test] passed permissions") # Always end function with this
 
 ##############################################################################
 # END TEST DEFINITIONS
