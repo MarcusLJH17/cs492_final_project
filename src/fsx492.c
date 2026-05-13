@@ -156,11 +156,11 @@ static inline int clear_blks(uint32_t start, uint32_t n)
  * @param      ctx    The context
  *
  * @return     0        if block is allocated
- *             -EINVAL  if block is not allocated or invalid
+ *             -EINVAL  if block is not allocated
  */
 static inline int validate_block(uint32_t blkno, struct context * ctx)
 {
-    return (!blkno || !FD_ISSET(blkno, ctx->block_map)) ? -EINVAL : 0;
+    return !FD_ISSET(blkno, ctx->block_map) ? -EINVAL : 0;
 }
 
 /**
@@ -235,7 +235,7 @@ static inline size_t count_avail_blks(struct context * ctx)
  */
 static inline int validate_inode(uint32_t ino, struct context * ctx)
 {
-    return (!ino || !FD_ISSET(ino, ctx->inode_map)) ? -EINVAL : 0;
+    return !FD_ISSET(ino, ctx->inode_map) ? -EINVAL : 0;
 }
 
 
@@ -891,7 +891,7 @@ static int _link(
                 // copy name into entry safely with size limit
                 strncpy(entries[slot].name, name, FSX492_FILENAMESZ);
                 // write the modified block back to disk
-                if (write_blks(dir->direct_blks[count], 1, (void *)entries) < 0){
+                if (write_blks(dir->direct_blks[blk_idx], 1, (void *)entries) < 0){
                     return -EIO;
                 }
                 // update FSX492_DIRENTSZ size
@@ -904,7 +904,7 @@ static int _link(
             }
             slot++;
         }
-        count++;    
+        blk_idx++;    
     }
 
     return -ENOSPC;
@@ -1177,7 +1177,7 @@ int fsx492_getattr(
 
     // copy stat info to statbuf
 
-    return -ENOENT;
+    return -ENOSYS;
 }
 
 
@@ -1586,7 +1586,6 @@ int fsx492_write(const char * path, const char * buf, size_t size,
             to_write -= blk_wlen;
             offset += blk_wlen;
             buf += blk_wlen;
-        }
     }
     // write to indir1 blocks if needed (allocate space as needed)
     const size_t indir1_sz = (FSX492_N_DIRECT + FSX492_PTRS_PER_BLK) * FSX492_BLKSZ;
@@ -1620,9 +1619,9 @@ int fsx492_write(const char * path, const char * buf, size_t size,
 
     // update inode and mark dirty
     if (offset > inode->size) {
-        inode->size = offset; [cite: 200]
+        inode->size = offset; 
     }
-    inode->mtime = inode->atime = time(NULL); [cite: 200]
+    inode->mtime = inode->atime = time(NULL); 
     dirty_inode(ino, ctx);
 
     return (int)(size - to_write);
@@ -1666,7 +1665,7 @@ int fsx492_release(const char * path, struct fuse_file_info * fi)
     // release resources from opened file (e.g. file handle)
     struct fh * fHandle = (struct fh *)fi->fh;
     free(fHandle);
-    fi->fh = NULL;
+    fi->fh = 0;
 
     // write back metadata
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
@@ -1709,7 +1708,7 @@ int fsx492_mkdir(const char * path, mode_t mode)
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
 
     // TODO:
-    unint32_t target_ino = 0, parent_ino = 0;
+    uint32_t target_ino = 0, parent_ino = 0;
     int ret = 0;
 
     // lookup parent directory path (see docs for `lookup_path`)
@@ -1921,7 +1920,7 @@ int fsx492_releasedir(const char * path, struct fuse_file_info * fi)
     // free allocated resources (file handle)
     struct fh * fHandle = (struct fh *)fi->fh;
     free(fHandle);
-    fi->fh = NULL;
+    fi->fh = 0;
 
     // write back dirty metadata
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
