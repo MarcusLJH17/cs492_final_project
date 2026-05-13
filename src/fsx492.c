@@ -1955,16 +1955,32 @@ int fsx492_rmdir(const char * path)
     // TODO:
 
     // lookup directory inode
+    uint32_t ino = 0, parent_ino = 0;
+    int ret = lookup_path(path, &ino, &parent_ino);
+    if (ret < 0) {
+        return ret;
+    }
 
+    struct context * ctx = (struct context *)fuse_get_context()->private_data;
     // confirm inode is directory
-
+    if (!S_ISDIR(ctx->inodes[ino].mode)) {
+        return -ENOTDIR;
+    }
     // confirm directory is empty (only `.` and `..` entries)
-
+    //2*FSX492_DIRENTSZ is the size if only has . and ..
+    if (ctx->inodes[ino].size > 2 * FSX492_DIRENTSZ) {
+        return -ENOTEMPTY;
+    }
     // remove `.` and `..` subdirectories
+    if ((ret = _unlink(".", ino, ctx)) < 0) {
+        return ret;
+    }
+    if ((ret = _unlink("..", ino, ctx)) < 0) {
+        return ret;
+    }
 
     // unlink directory inode from parent
-
-    return -ENOSYS;
+    return _unlink(basename(path), parent_ino, ctx);
 }
 
 
