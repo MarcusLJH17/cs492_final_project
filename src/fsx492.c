@@ -1344,7 +1344,7 @@ int fsx492_open(const char * path, struct fuse_file_info * fi)
 
     // store file handle in fi->fh
     fi->fh = (uint64_t)fHandle;
-    
+
     return 0;
 }
 
@@ -1647,20 +1647,51 @@ int fsx492_mkdir(const char * path, mode_t mode)
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
 
     // TODO:
+    unint32_t target_ino = 0, parent_ino = 0;
+    int ret = 0;
 
     // lookup parent directory path (see docs for `lookup_path`)
-
+    ret = lookup_path(path,&target_ino, &parent_ino);
+    if(ret != -ENOENT || target_ino != -1){
+        return (ret == 0) ? -EEXIST : ret;
+    }
     // create a new directory inode
+    uint32_t new_ino = 0;
+    if ((ret = alloc_inode(&new_ino, ctx)) < 0) {
+        return ret; //prob -ENOSPC
+    }
 
+    struct fsx492_inode *inode = &ctx->inodes[new_ino];
+    inode->ino = new_ino;
+    inode->mode = mode | S_IFDIR;
+    inode->uid = getuid();
+    inode->gid = getgid();
+    inode->nlink = 2; //itself and paretn
+    inode->size = 0;
+    inode->blocks = 0;
+    inode->ctime = inode->mtime = inode->atime = time(NULL);
+    memset(inode->direct_blks,0,sizeof(inode->direct_blks));
+    inode->indir1_blks = 0;
+    inode->indir2_blks = 0;
     // allocate space for directory entries
-
+    if((ret = _link(".",new_ino, new_ino,ctx)) < 0){
+        return ret;
+    }
+    if((ret = _link("..",parent_ino,new_ino,ctx)) < 0){
+        return ret;
+    }
     // add `.` and `..` subdirectories
 
     // link new directory to parent directory
+    if ((ret = _link(basename(path),new_ino,parent_ino,ctx)) < 0){
+        return ret;
+    }
 
     // mark dirty inodes for writeback
+    dirty_inode(new_ino, ctx);
+    dirty_inode(parent_ino, ctx);
 
-    return -ENOSYS;
+    return 0;
 }
 
 
