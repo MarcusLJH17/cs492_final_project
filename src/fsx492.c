@@ -1891,10 +1891,29 @@ int fsx492_link(const char * oldpath, const char * newpath)
     assert(newpath);
 
     // lookup paths
+    uint32_t old_ino = 0;    
+    int ret = lookup_path(oldpath, &old_ino, NULL);
+    if (ret < 0) {
+        return ret; //will return -ENOENT if oldpath doesn't exist
+    }
+
+    uint32_t new_target_ino = 0, new_parent_ino = 0;
+    ret = lookup_path(newpath, &new_target_ino, &new_parent_ino);
+
+    if(ret == 0){
+        return -EEXIST;
+    }
+    if(ret != -ENOENT) {
+        return ret;
+    }
+    if(new_parent_ino == 0) {
+        return -ENOENT;
+    }
 
     // link old inode to new directory inode
+    struct context * ctx = (struct context *)fuse_get_context()->private_data;
 
-    return -ENOSYS;
+    return _link(basename(newpath), old_ino, new_parent_ino, ctx);
 }
 
 
