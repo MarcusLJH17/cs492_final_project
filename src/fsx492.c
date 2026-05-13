@@ -1320,14 +1320,32 @@ int fsx492_open(const char * path, struct fuse_file_info * fi)
     // TODO:
 
     // lookup path and validate inode
+    uint32_t ino = 0;
+    int ret = lookup_path(path, &ino,NULL);
+    if(ret<0) {
+        return ret; //returns whatever from lookup_path
+    }
+
+    if(S_ISDIR(ctx->inodes[ino].mode)) {
+        return -EISDIR;
+    }
 
     // (option: perform permissions checking)
+    //DO THIS LATER
 
     // create the file handle
+    struct fh *fHandle = malloc(sizeof(struct fh));
+    if(!fHandle) {
+        return -ENOSPC;
+    }
+
+    fHandle->ino = ino;
+    fHandle->flags = fi->flags;
 
     // store file handle in fi->fh
-
-    return -ENOSYS;
+    fi->fh = (uint64_t)fHandle;
+    
+    return 0;
 }
 
 
