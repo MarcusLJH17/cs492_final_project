@@ -1329,7 +1329,7 @@ int fsx492_open(const char * path, struct fuse_file_info * fi)
     }
 
     // Fix for overwritting a file (open(path, "w") in Python)
-    if (fi->flags -> O_TRUNC) { // Checks if truncate flag was set
+    if (fi->flags & O_TRUNC) { // Checks if truncate flag was set
         ret = _truncate(ino, 0, ctx); // Truncates file to 0 bytes since overwritting
         if (ret < 0) { // Runs if failed
             return ret;
