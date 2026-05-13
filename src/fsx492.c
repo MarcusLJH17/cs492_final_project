@@ -503,10 +503,17 @@ static inline ssize_t search_block(
     assert(name);
     assert(entries);
 
-    // TODO:
-
+    // Helper for find_entry
     // find index of `name` parameter if found in `entries` array
 
+    // referenced geeksforgeeks for for loop help: https://www.geeksforgeeks.org/c/strcmp-in-c/ 
+    for(int i = 0; i < FSX492_DIRENTRIES_PER_BLK; i++){
+        //Checks if entry is valid and compares with name your looking for
+        if(entries[i].valid && strcmp(entries[i].name, name) == 0){
+            return i; //returns i if valid else -ENOSYS
+        }
+
+    }
     return -ENOSYS;
 }
 
@@ -527,16 +534,51 @@ static inline ssize_t search_block(
 static int find_entry(
     const char * name, uint32_t dir_ino, uint32_t * ino, struct context * ctx)
 {
+    // check if directory
+    // search directory entries in direct_blks
     assert(ctx);
     assert(name);
 
-    // TODO:
+    // -EINVAL if dir_ino is 0
+    if(dir_ino == 0){
+        return -EINVAL;
+    }
 
-    // check if directory
+    // Validates if innode exists if not return -ENOENT 
+    if(validate_inode(dir_ino, ctx)< 0){
+        return -ENOENT;
+    }
 
-    // search directory entries in direct_blks
+    // pointer to innodes data in memory
+    struct fsx492_inode *dir = &ctx->inodes[dir_ino];
 
-    return -ENOSYS;
+    // -ENOTDIR if dir_ino was not a directory inode
+    if (!S_ISDIR(dir->mode)){
+        return -ENOTDIR;
+    }
+
+    for(int i = 0; i < FSX492_N_DIRECT; i++) {
+        // checks block i, if no block is allocated here continues
+        if (validate_block(dir->direct_blks[i], ctx) < 0)
+            continue;
+
+        // used read_blks function to help read the blocks into directory entries 
+        struct fsx492_dirent entries[FSX492_DIRENTRIES_PER_BLK];
+        if (read_blks(dir->direct_blks[i], 1, (void *)entries) < 0){
+            return -EIO;
+        }
+        // goes through the 32 entries for the block
+        ssize_t found = search_block(name, entries);
+        // if you find the correct entry the innode number exists returns 0
+        if (found >= 0) {
+           if(ino){
+            *ino = entries[found].ino;
+           }
+           return 0;
+        }
+    }
+
+    return -ENOENT;
 }
 
 
@@ -799,25 +841,73 @@ static int _link(
     assert(dir_ino);
     assert(ctx);
 
-    // TODO:
+    // note: utilized some ideas found in find_entry
 
     // validate name length
+    if(strlen(name) >= 28){
+        return -EINVAL;
+    }
 
     // validate directory inode
+    if(validate_inode(dir_ino, ctx) < 0){
+        return -ENOENT;
+    }
+
+    struct fsx492_inode *dir = &ctx->inodes[dir_ino];
+
+    // add -ENOTDIR if dir_ino is not a directory inode
+    if (!S_ISDIR(dir->mode)){
+        return -ENOTDIR;
+    }
     
-    // load directory entries from disk
+    int count = 0;
+    while (count < FSX492_N_DIRECT) {
+        // load directory entries from disk
+        struct fsx492_dirent entries[FSX492_DIRENTRIES_PER_BLK];
 
-    // find a free directory entry (allocate new blocks as needed)
-    
-    // add the info to the entry
+         if (validate_block(dir->direct_blks[count], ctx) < 0) {
+            // no block here yet, allocate a new one
+            uint32_t newblk;
+            if (alloc_blk(&newblk, ctx) < 0){
+                return -ENOSPC;
+            }
+            dir->direct_blks[count] = newblk;
+            dir->blocks++;
+            dirty_inode(dir_ino, ctx);
+            // zero out entries since this is a brand new block
+            // referenced geeksforgeeks https://www.geeksforgeeks.org/c/memset-c-example/ 
+            memset(entries, 0, sizeof(entries));
+        }else if(read_blks(dir->direct_blks[count], 1, (void *)entries) < 0) {
+            // block exists, read it off disk
+            return -EIO;
+        }
 
-    // write back modified entry to disk
+        int slot = 0;
+        while (slot < FSX492_DIRENTRIES_PER_BLK) {
+            if (!entries[slot].valid) {
+                // make a new slot if found and fill with new directory entry
+                entries[slot].valid = 1;
+                entries[slot].ino = ino;
+                // copy name into entry safely with size limit
+                strncpy(entries[slot].name, name, FSX492_FILENAMESZ);
+                // write the modified block back to disk
+                if (write_blks(dir->direct_blks[count], 1, (void *)entries) < 0){
+                    return -EIO;
+                }
+                // update FSX492_DIRENTSZ size
+                dir->size += FSX492_DIRENTSZ;
+                dirty_inode(dir_ino, ctx);
 
-    // modify directory inode
+                ctx->inodes[ino].nlink++;
+                dirty_inode(ino, ctx);
+                return 0;
+            }
+            slot++;
+        }
+        count++;    
+    }
 
-    // modify entry inode
-
-    return -ENOSYS;
+    return -ENOSPC;
 }
 
 
@@ -839,22 +929,65 @@ static int _unlink(
     assert(name);
     assert(dir_ino);
     assert(ctx);
-    
-    // TODO:
 
-    // load entries from disk and search for the entry
 
-    // invalidate the entry
+    // checks if inode not in directory
+    if (validate_inode(dir_ino, ctx) < 0){
+        return -ENOENT;
+    }
 
-    // write back modified entries
+    struct fsx492_inode *dir = &ctx->inodes[dir_ino];
 
-    // change directory file size after writeback succeeds
+    int blk_idx = 0;
 
-    // decrement inode nlink
+    while(blk_idx < FSX492_N_DIRECT){
+        // if no block is allocated here skip and move on
+        if(validate_block(dir->direct_blks[blk_idx], ctx) < 0){
+            blk_idx++;
+            continue;
+        }
+        
+        // read the block off disk into a local buffer of directory entries
+        struct fsx492_dirent entries[FSX492_DIRENTRIES_PER_BLK];
+        if(read_blks(dir->direct_blks[blk_idx], 1, (void *)entries) < 0) {
+            // block exists, read it off disk
+            return -EIO;
+        }
 
-    // delete inode if necessary
+        // utilzied search_block function and referenced my find_entry code for structure
+        ssize_t found = search_block(name, entries);
+        if (found >= 0) {
 
-    return -ENOSYS;
+            // save inode number before clearing the entry
+            uint32_t entry_ino = entries[found].ino;
+
+            // zero out the entire entry to invalidate it
+            memset(&entries[found], 0, sizeof(struct fsx492_dirent));
+
+            // write the modified block back to disk
+            if (write_blks(dir->direct_blks[blk_idx], 1, (void *)entries) < 0) {
+                return -EIO;
+            }
+
+            //directory loses an entry soupdate its size
+            dir->size -= FSX492_DIRENTSZ;
+            dirty_inode(dir_ino, ctx);
+
+            ctx->inodes[entry_ino].nlink--;
+            dirty_inode(entry_ino, ctx);
+
+            // frees the inode and its blocks
+            if (ctx->inodes[entry_ino].nlink == 0) {
+                _truncate(entry_ino, 0, ctx);
+                free_inode(entry_ino, ctx);
+            }
+
+            return 0;
+        }
+     
+        blk_idx++;
+    }
+    return -ENOENT;
 }
 
 
@@ -1029,6 +1162,16 @@ int fsx492_getattr(
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
 
     // TODO:
+    uint32_t target_ino = 0, parent_ino = 0;
+
+    int searchNode = lookup_path(path, &target_ino, &parent_ino);
+
+    if(searchNode < 0){
+        return searchNode;
+    }else{
+        copy_stat(&ctx->inodes[target_ino], statbuf);
+        return 0;
+    }
 
     // lookup inode (or skip lookup if handle already open in fi)
 
@@ -1439,13 +1582,19 @@ int fsx492_release(const char * path, struct fuse_file_info * fi)
     fprintf(stdout, "fsx492_release: %s\n", path);
     assert(path);
 
-    // TODO:
 
     // release resources from opened file (e.g. file handle)
+    struct fh * fHandle = (struct fh *)fi->fh;
+    free(fHandle);
+    fi->fh = NULL;
 
     // write back metadata
+    struct context * ctx = (struct context *)fuse_get_context()->private_data;
+    if (writeback_metadata(ctx) < 0) {
+        return -EIO;
+    }
 
-    return -ENOSYS;
+    return 0;
 }
 
 
@@ -1516,17 +1665,34 @@ int fsx492_opendir(const char * path, struct fuse_file_info * fi)
     assert(fi);
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
     
-    // TODO:
-
     // look up the directory inode
 
-    // create a new file handle
+    uint32_t target_ino = 0, parent_ino = 0;
 
-    // (optional) perform permissions checking
+    int searchNode = lookup_path(path, &target_ino, &parent_ino);
+
+    if(searchNode < 0){
+        return searchNode;
+    }
+
+    struct fsx492_inode * dir = &ctx->inodes[target_ino];
+    if (!S_ISDIR(dir->mode)){
+        return -ENOTDIR;
+    }
+
+    // create a new file handle
+    struct fh * fHandle = malloc(sizeof(struct fh));
+    if (!fHandle) {
+        return -ENOSPC;
+    }
+
+    fHandle->ino = target_ino;
+    fHandle->flags = fi->flags;
 
     // update fi with file handle
+    fi->fh = (uint64_t)fHandle;
 
-    return -ENOSYS;
+    return 0;
 }
 
 
@@ -1640,13 +1806,19 @@ int fsx492_releasedir(const char * path, struct fuse_file_info * fi)
     fprintf(stdout, "fsx492_releasedir: %s\n", path);
     assert(fi);
     
-    // TODO:
 
     // free allocated resources (file handle)
+    struct fh * fHandle = (struct fh *)fi->fh;
+    free(fHandle);
+    fi->fh = NULL;
 
     // write back dirty metadata
+    struct context * ctx = (struct context *)fuse_get_context()->private_data;
+    if (writeback_metadata(ctx) < 0) {
+        return -EIO;
+    }
 
-    return -ENOSYS;
+    return 0;
 }
 
 
