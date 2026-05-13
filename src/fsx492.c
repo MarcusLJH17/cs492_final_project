@@ -1621,7 +1621,50 @@ int fsx492_write(const char * path, const char * buf, size_t size,
             buf += blk_wlen;
         }
     }
+
     // write to indir2 blocks if needed (allocate space as needed)
+    const size_t indir2_sz = (FSX492_N_DIRECT + FSX492_PTRS_PER_BLK + FSX492_PTRS_PER_BLK * FSX492_PTRS_PER_BLK) * FSX492_BLKSZ;
+    if (to_write > 0 && offset < indir2_sz) {
+        if (validate_block(inode->indir2_blks, ctx) < 0) {
+            if (alloc_blk(&inode->indir2_blks, ctx) < 0) return -ENOSPC;
+        }
+        uint32_t blks2[FSX492_PTRS_PER_BLK];
+        if (read_blks(inode->indir2_blks, 1, blks2) < 0) return -EIO;
+
+        size_t start_blk1 = (offset / FSX492_BLKSZ - FSX492_N_DIRECT - FSX492_PTRS_PER_BLK) / FSX492_PTRS_PER_BLK;
+        for (size_t i = start_blk1; to_write > 0 && i < FSX492_PTRS_PER_BLK; i++) {
+            if (validate_block(blks2[i], ctx) < 0) {
+                if (alloc_blk(&blks2[i], ctx) < 0) return -ENOSPC;
+                // inode->blocks++;
+                if (write_blks(inode->indir2_blks, 1, blks2) < 0) return -EIO;
+            }
+            uint32_t blks1[FSX492_PTRS_PER_BLK];
+            if (read_blks(blks2[i], 1, blks1) < 0) return -EIO;
+
+            // compute starting data block in indir1 block
+            size_t start_blk2 = (offset / FSX492_BLKSZ - FSX492_N_DIRECT - FSX492_PTRS_PER_BLK) % FSX492_PTRS_PER_BLK;
+            for (size_t j = start_blk2; to_write > 0 && j < FSX492_PTRS_PER_BLK; j++) {
+                // allocate data block if needed
+                if (validate_block(blks1[j], ctx) < 0) {
+                    if (alloc_blk(&blks1[j], ctx) < 0) return -ENOSPC;
+                    inode->blocks++;
+                    if (write_blks(blks2[i], 1, blks1) < 0) return -EIO;
+                }
+                char tmp[FSX492_BLKSZ];
+                if (read_blks(blks1[j], 1, tmp) < 0) return -EIO;
+
+                size_t blk_off = offset % FSX492_BLKSZ;
+                size_t blk_wlen = (to_write > (FSX492_BLKSZ - blk_off)) ? (FSX492_BLKSZ - blk_off) : to_write;
+                memcpy(tmp + blk_off, buf, blk_wlen);
+                if (write_blks(blks1[j], 1, tmp) < 0) return -EIO;
+
+                to_write -= blk_wlen;
+                offset += blk_wlen;
+                buf += blk_wlen;
+            }
+        }
+    }
+
 
     // update inode and mark dirty
     if (offset > inode->size) {
