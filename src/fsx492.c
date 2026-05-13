@@ -860,24 +860,24 @@ static int _link(
         return -ENOTDIR;
     }
     
-    int count = 0;
-    while (count < FSX492_N_DIRECT) {
+    int blk_idx = 0;
+    while (blk_idx < FSX492_N_DIRECT) {
         // load directory entries from disk
         struct fsx492_dirent entries[FSX492_DIRENTRIES_PER_BLK];
 
-         if (validate_block(dir->direct_blks[count], ctx) < 0) {
+         if (validate_block(dir->direct_blks[blk_idx], ctx) < 0) {
             // no block here yet, allocate a new one
             uint32_t newblk;
             if (alloc_blk(&newblk, ctx) < 0){
                 return -ENOSPC;
             }
-            dir->direct_blks[count] = newblk;
+            dir->direct_blks[blk_idx] = newblk;
             dir->blocks++;
             dirty_inode(dir_ino, ctx);
             // zero out entries since this is a brand new block
             // referenced geeksforgeeks https://www.geeksforgeeks.org/c/memset-c-example/ 
             memset(entries, 0, sizeof(entries));
-        }else if(read_blks(dir->direct_blks[count], 1, (void *)entries) < 0) {
+        }else if(read_blks(dir->direct_blks[blk_idx], 1, (void *)entries) < 0) {
             // block exists, read it off disk
             return -EIO;
         }
@@ -2053,13 +2053,27 @@ int fsx492_chmod(const char * path, mode_t mode, struct fuse_file_info * fi)
     fprintf(stdout, "fsx492_chmod: %s\n", path);
     assert(path);
 
-    // TODO:
+    struct context * ctx = (struct context *)fuse_get_context()->private_data;
+
+    int ret = 0;
+    uint32_t ino = 0;
+
+    // Personal reference to learn: https://www.linode.com/docs/guides/modify-file-permissions-with-chmod/ 
+    // Referenced ideas found from this website: https://man7.org/linux/man-pages/man7/inode.7.html 
 
     // lookup inode
 
-    // update mode bits (directories and regular files only)
+    if ((ret = lookup_path(path, &ino, NULL)) < 0) {
+        return ret;
+    }
 
-    return -ENOSYS;
+    // update mode bits (directories and regular files only)
+    ctx->inodes[ino].mode = (ctx->inodes[ino].mode & S_IFMT) | (mode & 07777);
+
+    // mark dirty so writeback_metadata flushes it to disk on release/destroy
+    dirty_inode(ino, ctx);
+
+    return 0;
 }
 
 
