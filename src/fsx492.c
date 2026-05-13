@@ -1161,11 +1161,12 @@ int fsx492_getattr(
     assert(path);
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
 
-    // TODO:
     uint32_t target_ino = 0, parent_ino = 0;
 
+    // lookup inode (or skip lookup if handle already open in fi)
     int searchNode = lookup_path(path, &target_ino, &parent_ino);
 
+    // copy stat info to statbuf
     if(searchNode < 0){
         return searchNode;
     }else{
@@ -1173,9 +1174,7 @@ int fsx492_getattr(
         return 0;
     }
 
-    // lookup inode (or skip lookup if handle already open in fi)
 
-    // copy stat info to statbuf
 
     return -ENOENT;
 }
@@ -2249,16 +2248,17 @@ int fsx492_chmod(const char * path, mode_t mode, struct fuse_file_info * fi)
 
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
 
-    int ret = 0;
+    int searchNode = 0;
     uint32_t ino = 0;
 
     // Personal reference to learn: https://www.linode.com/docs/guides/modify-file-permissions-with-chmod/ 
     // Referenced ideas found from this website: https://man7.org/linux/man-pages/man7/inode.7.html 
 
     // lookup inode
+    searchNode = lookup_path(path, &ino, NULL);
 
-    if ((ret = lookup_path(path, &ino, NULL)) < 0) {
-        return ret;
+    if (searchNode < 0) {
+        return searchNode;
     }
 
     // update mode bits (directories and regular files only)
