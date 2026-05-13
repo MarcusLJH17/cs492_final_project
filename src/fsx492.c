@@ -1260,7 +1260,7 @@ int fsx492_mknod(const char * path, mode_t mode, dev_t dev)
     inode->blocks = 0;
     inode->ctime = inode->mtime = inode->atime = time(NULL);
     for (int i = 0; i < FSX492_N_DIRECT; i++) {
-        inode->direct_blks[0] = 0;
+        inode->direct_blks[i] = 0;
     }
     inode->indir1_blks = 0;
     inode->indir2_blks = 0;
@@ -1317,8 +1317,6 @@ int fsx492_open(const char * path, struct fuse_file_info * fi)
     assert(fi);
     struct context * ctx = (struct context *)fuse_get_context()->private_data;
 
-    // TODO:
-
     // lookup path and validate inode
     uint32_t ino = 0;
     int ret = lookup_path(path, &ino,NULL);
@@ -1330,8 +1328,15 @@ int fsx492_open(const char * path, struct fuse_file_info * fi)
         return -EISDIR;
     }
 
-    // (option: perform permissions checking)
-    //DO THIS LATER
+    // Fix for overwritting a file (open(path, "w") in Python)
+    if (fi->flags -> O_TRUNC) { // Checks if truncate flag was set
+        ret = _truncate(ino, 0, ctx); // Truncates file to 0 bytes since overwritting
+        if (ret < 0) { // Runs if failed
+            return ret;
+        }
+
+    }
+
 
     // create the file handle
     struct fh *fHandle = malloc(sizeof(struct fh));
