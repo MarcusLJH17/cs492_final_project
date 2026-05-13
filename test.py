@@ -127,7 +127,7 @@ def test_subdirectory(mountpoint):
         if os.path.isfile(full_file_path): # Checks that the path is that of a file
             os.remove(full_file_path) # Removes file
     
-    assert not (True in [os.path.is_file(file) for file in os.listdir(base_path)]), f"file removal failed" # Check if any file still exists in the subdirectory
+    assert not (True in [os.path.isfile(os.path.join(base_path, file)) for file in os.listdir(base_path)]), f"file removal failed" # Check if any file still exists in the subdirectory
 
     # 4.) Remove the subdirectory and ensure it does NOT exist
     print(f"[test] remove subdirectory {base_path}")
@@ -196,12 +196,12 @@ def test_overwrite(mountpoint):
     # 4.) Overwrite file, check content
     print(f"[test] file overwrite {file_path}")
     with open(file_path, "w") as file: # Open file in write mode
-        file.write("Goodbye World!") # Overwrite file
+        file.write("Bye World!") # Overwrite file
     
     with open(file_path, "r") as file: # Open file in read mode
         data = file.read()
     
-    assert data == "Goodbye World!", f"unexpected file content of file at {file_path}" # Ensure file data is what it should be
+    assert data == "Bye World!", f"unexpected file content of file at {file_path}" # Ensure file data is what it should be
 
     # 5.) Remove file, make sure it doesn't exist
     print(f"[test] remove file {base_path}")
@@ -352,14 +352,15 @@ def test_access_mod(mountpoint):
     old_access_time = os.stat(file_path).st_atime # Get current access time
     old_mod_time = os.stat(file_path).st_mtime # Get current modification time
 
-    new_access_time = 123454321
-    new_mod_time = 123456789
+    new_access_time = 123456789
+    new_mod_time = 123454321
     os.utime(file_path, (new_access_time, new_mod_time)) # Update access and modification times
 
-    assert os.stat(file_path).st_atime == 123454321, f"access time not matching updated value for {file_path}"
-    assert os.stat(file_path).st_mtime == 123456789, f"modification time not matching updated value for {file_path}"
+    assert os.stat(file_path).st_atime == 123456789, f"access time not matching updated value for {file_path}"
+    assert os.stat(file_path).st_mtime == 123454321, f"modification time not matching updated value for {file_path}"
 
     # 3.) Ensure new values are different from old values (not sure if necessary but doesn't hurt)
+    # Hypothetically, I guess the old times could be 123456789 and 123454321 and the below could fail, but odds are small
     print(f"[test] different access and modification times from old {file_path}")
     assert os.stat(file_path).st_atime != old_access_time, f"updated access time same as original time for {file_path}"
     assert os.stat(file_path).st_mtime != old_mod_time, f"updated modification time same as original time for {file_path}"
@@ -395,7 +396,8 @@ def test_permissions(mountpoint):
     updated_perm = 0o400
     os.chmod(file_path, updated_perm) # I only want the owner to be able to read the file
     
-    assert oct((os.stat(file_path).st_mode) & 0o777) == updated_perm, f"permissions were not updated for {file_path}"    
+    # If there are issues with the assert below, it may be because of the result from os.stat 
+    assert ((os.stat(file_path).st_mode) & 0o777) == updated_perm, f"permissions were not updated for {file_path}"    
 
     # 3.) Check that the new permissions are different from the original saved ones
     print(f"[test] file permissions changed {file_path}")
@@ -407,6 +409,35 @@ def test_permissions(mountpoint):
     os.remove(file_path) # Remove the file
 
     assert not os.path.exists(file_path), f"file removal failed: {file_path} still exists" # Check if file was removed
+
+    # NOTE Should probably test permissions for directories too so copied code from above ===========================
+
+    # 1.) Create a folder, make sure it exists
+    print(f"[test] create directory {mountpoint}")
+    dir_path = os.path.join(mountpoint, "perm_dir")
+    os.mkdir(dir_path) # Make the new directory
+
+    assert os.path.exists(dir_path), f"directory creation failed: {dir_path} does not exist" # Check if new directory was successfully made
+    
+    # 2.) Save what the current permissions are (preferably in octal), change them, and check to ensure they were changed
+    old_perm = (os.stat(dir_path).st_mode) & 0o777 # Gets current permission bits by using a mask
+    print(f"[test] update directory permissions {dir_path}")
+    updated_perm = 0o700
+    os.chmod(dir_path, updated_perm) # I only want the owner to have any permissions
+    
+    # If there are issues with the assert below, it may be because of the result from os.stat 
+    assert ((os.stat(dir_path).st_mode) & 0o777) == updated_perm, f"permissions were not updated for {dir_path}"    
+
+    # 3.) Check that the new permissions are different from the original saved ones
+    print(f"[test] directory permissions changed {dir_path}")
+
+    assert old_perm != (os.stat(dir_path).st_mode & 0o777), f"new permissions same as old for {dir_path}"
+
+    # 4.) Remove the file and check that it was removed 
+    print(f"[test] remove directory {mountpoint}")
+    os.rmdir(dir_path) # Remove the directory
+
+    assert not os.path.exists(dir_path), f"directory removal failed: {dir_path} still exists" # Check if directory was removed
 
     print("[test] passed permissions") # Always end function with this
 
